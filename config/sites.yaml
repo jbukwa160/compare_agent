@@ -1,0 +1,843 @@
+# ---------------------------------------------------------------------------
+# Reference websites. Add, remove or disable (enabled: false) entries here —
+# no code changes needed for sites that fit one of the generic types.
+#
+#   local:   sites for the Bulgarian check
+#   global:  sites for the worldwide check (any country; set `country` for its VAT)
+#   traffic: per-product traffic sources (monthly searches) for Bulgaria and worldwide markets
+#
+# Common keys
+#   name           display name (unique)
+#   enabled        true/false
+#   type           html | json_api | json_html | jsonld   (see README "Adding a website")
+#   country        ISO code, used to pick the VAT rate to strip from shop prices (settings.yaml)
+#   currency       default currency when the site does not state it
+#   search_by      ean_then_name (default) | ean | name
+#   max_results    how many search hits to consider per query
+#   delay_seconds  pause between requests to this site
+#   in_stock_values / out_of_stock_values / on_order_values
+#                  words in the site's availability text (case-insensitive substring match);
+#                  checked in the order out-of-stock -> on-order -> in-stock
+#   product_page   open the product page of likely matches to read EAN / stock / price
+#   api_key_env    env variable holding the site's API key; the site is skipped while it is empty
+#   impersonate    true = Chrome TLS fingerprint via curl_cffi, for sites that 403 plain scripts
+#   force_currency true = always use `currency` (for sites that mislabel EUR prices as BGN)
+#   timeout_seconds  per-site timeout for slow sites
+#   product_on_redirect  selectors (title/price/availability) for searches that jump straight to the product page
+#   max_consecutive_failures  skip the site for the rest of the run after N failures in a row (default 3)
+#   retry_http     HTTP codes that mean "slow down" on this site (e.g. [403, 429]): wait and retry
+#   broad_query    add a last search with brand + model code only (for strict search engines)
+#   max_queries    try at most N search queries per product (EAN, part number, full name, short name)
+#   split_letter_digits  search "HERO 12" instead of "HERO12" (for sites that write it that way)
+# ---------------------------------------------------------------------------
+
+local:
+
+  - name: Technopolis
+    enabled: true
+    type: json_api
+    country: BG
+    currency: EUR
+    search_by: ean_then_name
+    request:
+      method: GET
+      url: https://api.technopolis.bg/videoluxcommercewebservices/v2/technopolis-bg/products/search
+      params:
+        query: "{query}"
+        lang: bg
+        curr: EUR
+        pageSize: 20
+        currentPage: 0
+        # a custom field list must include facets, otherwise the API returns {}
+        fields: "products(code,name,url,ean,price(value,currencyIso),stock(stockLevelStatus),soldOut,purchasable,showBuyButton),pagination(DEFAULT),facets(code)"
+      headers:
+        Accept: application/json
+    items: products
+    fields:
+      title: name
+      url: url
+      url_prefix: https://www.technopolis.bg/bg
+      price: price.value
+      currency: price.currencyIso
+      availability: stock.stockLevelStatus
+      out_of_stock_if: soldOut
+      ean: ean
+    in_stock_values: [inStock, lowStock]
+    on_order_values: [lateDelivery, preOrder]
+    out_of_stock_values: [outOfStock, reserved]
+
+  - name: Technomarket
+    enabled: true
+    type: json_html                 # JSON API whose items are HTML product cards
+    country: BG
+    currency: EUR
+    search_by: ean_then_name
+    split_letter_digits: true       # their titles say "HERO 12", so search "HERO 12", not "HERO12"
+    base_url: https://www.technomarket.bg
+    request:
+      method: GET
+      url: https://www.technomarket.bg/api/frontend/filter
+      params: {id: search, query: "{query}"}
+      headers:
+        Accept: "application/json, text/plain, */*"
+        Referer: https://www.technomarket.bg/
+    items: products
+    results:
+      title: ".overview a.title"
+      url: ".overview a.title@href"
+      price: ".price-block .price .euro_price"
+      out_of_stock_if_present: ".price-block.not-for-sale"
+      in_stock_if_present: ".price-block:not(.not-for-sale)"
+    # search is fuzzy and has no EAN -> confirm on the product page
+    product_page:
+      max_pages: 3
+      ean: "tm-pointandplace@ean"
+
+  - name: Ozone
+    enabled: true
+    type: json_api                  # Fast Simon search API used by ozone.bg
+    country: BG
+    currency: EUR
+    search_by: ean_then_name
+    request:
+      method: GET
+      url: https://api.fastsimon.com/full_text_search
+      params:
+        UUID: b68c2ea0-b6bf-4258-8435-ab810810ee1b
+        store_id: 1
+        q: "{query}"
+        products_per_page: 20
+        page_num: 1
+        with_product_attributes: "true"
+    items: items
+    fields:
+      title: l
+      url: u
+      price: p
+      currency: c
+      availability: {pairs: att, key: "[общи] ozone наличност"}
+      ean: {pairs: att, key: oz_common_barcode}
+    in_stock_values: ["На склад"]
+    on_order_values: ["При доставчик", "С доставка до", "Преордър"]
+    out_of_stock_values: ["Изчерпан", "Няма наличност"]
+
+  # NOTE: technomix.bg is a plastics company, not a shop. The electronics retailer is tehnomix.bg.
+  - name: Tehnomix
+    enabled: true
+    type: html                      # Magento 2 server-rendered search page
+    country: BG
+    currency: EUR
+    search_by: ean_then_name
+    search_url: "https://www.tehnomix.bg/catalogsearch/result/?q={query}&product_list_limit=36"
+    results:
+      item: "li.product-item"
+      title: "a.product-item-link"
+      url: "a.product-item-link@href"
+      price: '[data-price-type="finalPrice"]@data-price-amount'   # not the first .price (that is the RRP)
+      availability: ".stock"
+      in_stock_if_present: "button.tocart"
+    out_of_stock_values: ["Изчерпан"]
+    product_page:
+      max_pages: 2
+      ean: '#product-attribute-specs-table td[data-th="EAN"]'
+      availability: ".product-info-stock-sku .stock"
+
+  # Bulgarian price comparison: how many shops sell it and from what price.
+  # Used with Pazaruvaj's written consent (2026-10-09). Pazaruvaj stores no barcode of its own: an EAN
+  # search only hits when a shop wrote the EAN into its offer (then it jumps straight to the product page,
+  # which is a sure match). Otherwise part number / name.
+  - name: Pazaruvaj
+    enabled: true
+    type: html
+    impersonate: true               # needs curl_cffi (plain requests get 403)
+    country: BG
+    currency: EUR
+    search_by: ean_then_name
+    assume_in_stock: true
+    delay_seconds: 5                # its firewall answers 403 to faster searching
+    retry_http: [403, 429]          # those are "slow down": wait 20 s / 60 s and retry instead of skipping
+    broad_query: true               # its search needs every word: last try "JBL T110", "Goodram CX400"
+    max_results: 20
+    search_url: "https://www.pazaruvaj.com/CategorySearch.php?st={query}"
+    results:
+      item: "div.product-box"
+      title: ".name h2 a"
+      url: ".name h2 a@href"
+      price: ".price"               # "от 216,19 €"
+      shop_count: ".offer-num"      # "66 оферти"
+    product_on_redirect:            # EAN / part-number hit = straight to the product page
+      title: "h1"
+      price: "[itemprop=lowPrice] || [itemprop=price]"   # visible EUR text; content attributes are BGN
+                                    # (one-shop pages have no lowPrice, only that shop's price)
+      shop_count: "[itemprop=offerCount]@content"
+      trust_query_ean: true
+
+  - name: eMAG.bg
+    enabled: true
+    type: html
+    impersonate: true
+    # eMAG's firewall (AWS WAF captcha, HTTP 511) blocks the whole site for this IP for hours after
+    # ~30 fast searches. Keep it slow and small: 9 s between searches, at most 2 queries per product,
+    # and stop for the rest of the run at the first block.
+    delay_seconds: 9
+    max_queries: 2
+    max_consecutive_failures: 1
+    country: BG
+    currency: EUR
+    search_by: name                 # EAN search returns random items
+    search_url: "https://www.emag.bg/search/{query_path}"
+    results:
+      item: "div.card-item[data-product-id]"
+      title: "@data-name"
+      url: "@data-url"
+      price: "p.product-new-price"
+      availability: "@data-availability-id"
+    in_stock_values: ["3", "2"]     # 3 = in stock, 2 = last units
+
+  # ---- Bulgarian IT / computer shops -----------------------------------------
+  # Searches by name also try the manufacturer part number first (e.g. SDCS3/128GB).
+
+  - name: Ardes
+    enabled: true
+    type: html
+    country: BG
+    currency: EUR
+    search_by: name                 # EAN search finds nothing; part number / name work (fuzzy)
+    delay_seconds: 2
+    search_url: "https://ardes.bg/products?q={query}"
+    results:
+      item: "div.products-grid div.product"
+      title: "div.title span"
+      url: "div.product-head > a@href"
+      price: "div.prices div.price span.price-num"
+      availability: "div.client-availability-info"   # "Наличен: Варна, Пловдив, ..., Онлайн"
+    in_stock_values: ["Наличен", "Наличност:", "Централен Склад"]   # city names after "Наличност:" = store stock
+    on_order_values: ["Външен доставчик"]
+    out_of_stock_values: ["Изчерпан", "Няма наличност"]
+    product_page:                   # JSON-LD gives the EAN (gtin13 / gtin12)
+      max_pages: 2
+      availability: "div.delivery-avail strong"
+
+  - name: Plesio
+    enabled: true
+    type: json_api                  # the site's own Algolia search (public search-only key from its JS)
+    country: BG
+    currency: EUR
+    search_by: name                 # EAN / part number are not searchable
+    request:
+      method: GET
+      url: https://jcidu3tqrv-dsn.algolia.net/1/indexes/products_production
+      params:
+        query: "{query}"
+        hitsPerPage: 20
+        filters: 'status:"ACTV"'
+        attributesToHighlight: ""
+        x-algolia-application-id: JCIDU3TQRV
+        x-algolia-api-key: 52dd701a35dae3231b6736d7485ffb38
+    items: hits
+    fields:
+      title: name
+      url: product_url
+      url_prefix: https://plesio.bg
+      price: price
+    in_stock_values: ["Безплатна доставка", "Налично"]
+    on_order_values: ["По заявка"]
+    product_page:                   # stock is only on the product page
+      max_pages: 2
+      availability: "#availability .productFeaturesItemText"
+
+  - name: JAR Computers
+    enabled: true
+    type: html
+    country: BG
+    currency: EUR
+    search_by: ean_then_name        # EAN works for some brands; part number is reliable
+    delay_seconds: 2
+    search_url: "https://www.jarcomputers.com/search?q={query}"
+    results:
+      item: "li.sProduct"
+      title: "span.short_title a"
+      url: "span.short_title a@href"
+      price: "div.s3 div.price p.new-price"
+      out_of_stock_if_present: "span.avail-old"     # "Продуктът вече не се предлага"
+    in_stock_values: ["Налично в централен склад", "Налично във външен склад", "Налично"]
+    on_order_values: ["Внос по заявка", "По заявка"]
+    out_of_stock_values: ["Продуктът вече не се предлага", "Изчерпан"]
+    product_page:                   # stock label loads separately; read it from the product page
+      max_pages: 2
+      availability: "li:has(> div.availability_data) > span:first-child"
+
+  - name: Desktop.bg
+    enabled: true
+    type: html
+    country: BG
+    currency: EUR
+    search_by: name                 # EAN / part number return nothing
+    delay_seconds: 2
+    search_url: "https://desktop.bg/search?q={query}"
+    results:
+      item: "ul.products > li[id^=product_]"
+      title: "h2[itemprop=name]"
+      url: "article > a@href"
+      price: "span.price [itemprop=price]"          # not li@data-price (that is without VAT)
+      availability: "link[itemprop=availability]@href"
+    in_stock_values: ["InStock"]
+    on_order_values: ["PreOrder", "BackOrder"]
+    out_of_stock_values: ["OutOfStock", "SoldOut", "Discontinued"]
+
+  - name: PIC.bg
+    enabled: true
+    type: json_html                 # search URL answers JSON {results_html: "<cards>"} to XHR requests
+    country: BG
+    currency: EUR
+    search_by: ean_then_name        # EAN and part number both work
+    delay_seconds: 2
+    base_url: https://www.pic.bg
+    request:
+      method: GET
+      url: "https://www.pic.bg/search/{query_path}"
+      headers:
+        Accept: application/json
+        X-Requested-With: XMLHttpRequest
+    items: results_html
+    results:
+      item: "#grid-view div.product-item:not(.no-result-item)"
+      title: "div.body div.title a"
+      url: "div.body div.title a@href"
+      price: "div.prices div.price-euro"
+      in_stock_if_present: "a.add-to-cart"
+      out_of_stock_if_present: "a.view-product"
+    product_page:                   # full title + EAN (JSON-LD gtin13)
+      max_pages: 2
+      titles_truncated: true        # card titles are cut at ~40 characters
+      availability: "div.availability span.available-info span"
+    in_stock_values: ["Налично", "В наличност"]
+    on_order_values: ["Очаква се"]
+    out_of_stock_values: ["Изчерпано"]
+
+  - name: Zora
+    enabled: true
+    type: html
+    country: BG
+    currency: EUR
+    search_by: ean_then_name        # EAN search is exact (else it returns unrelated fallback items)
+    delay_seconds: 2
+    search_url: "https://zora.bg/search?query={query}"
+    results:
+      item: "div._products-list div._product"
+      title: "div._product-name h3 a"
+      url: "div._product-name h3 a@href"
+      price: "div._product-info div._product-options div._product-price > span:first-child"
+      in_stock_if_present: "a.add-cart-product[href*='/cart/add/']"
+    # product pages are behind a Cloudflare challenge -> no product_page step
+
+  # ---- Bulgarian photo / camera shops ------------------------------------------
+  # Canon EU stock here carries EU EANs (e.g. 8714574...), not the Japanese 4549292... ones: matched by name.
+
+  - name: Photosynthesis
+    enabled: true
+    type: html                      # PrestaShop
+    country: BG
+    currency: EUR                   # the meta says BGN but the values are EUR
+    search_by: name                 # EAN search finds nothing
+    delay_seconds: 3
+    search_url: "https://magazin.photosynthesis.bg/bg/search?controller=search&orderby=position&orderway=desc&search_query={query}"
+    results:
+      item: "div.ajax_block_product"
+      title: "h3 a.product_link"
+      url: "h3 a.product_link@href"
+      price: '.item-buy-info meta[itemprop="price"]@content || .item-buy-info .price b'
+      availability: '.item-buy-info meta[itemprop="availability"]@content'   # InStock / PreOrder / OutOfStock
+    in_stock_values: [InStock]
+    on_order_values: [PreOrder]
+    out_of_stock_values: [OutOfStock, Discontinued]   # "Очакваме доставка" is OutOfStock here
+
+  - name: Fotosviat
+    enabled: true
+    type: html                      # official Canon / Kodak importer
+    country: BG
+    currency: EUR
+    search_by: name                 # EAN finds nothing; part numbers (5137C041AA) and names work
+    assume_in_stock: true           # stock is not shown; listed items can be bought
+    delay_seconds: 3
+    search_url: "https://fotosviat.bg/search.aspx?q={query}"
+    results:
+      item: "a.productblock[href^='/product/']"
+      title: "p"
+      url: "@href"
+      price: ".productprice b"
+      price_remove: "span"          # sale cards hold the old price in a <span> inside the price
+
+  - name: Digiexpert
+    enabled: true
+    type: json_api                  # the site's own product API (client id from its JS)
+    country: BG
+    currency: EUR
+    search_by: ean_then_name        # EAN works; names must match every word ("R6 III", not "R6 Mark III")
+    delay_seconds: 3
+    request:
+      method: POST
+      url: https://www.digiexpert.bg/api/v1/products/list/
+      json: {query: {_search: "{query}"}, limit: 12, offset: 0}
+      headers:
+        x-sx-client-id: WVCP8F2K1CQNVOQDKU3C8GAJPCZEISI4
+        Accept: application/json
+        Referer: https://www.digiexpert.bg/
+    items: rows
+    fields:
+      title: "displayName[0].text"
+      url: href
+      url_template: "https://www.digiexpert.bg{href}-product-{extra.kod}"
+      price: "salePriceWithTax[0].amount"
+      availability: stockQuantity.available   # true / false
+      ean: ean
+
+  - name: GoPro.bg
+    enabled: true
+    type: html                      # official GoPro distributor (WooCommerce)
+    country: BG
+    currency: EUR
+    search_by: name                 # an exact SKU search jumps to a product page instead of results
+    delay_seconds: 3
+    search_url: "https://gopro.bg/?s={query}&post_type=product"
+    results:
+      item: "div.wd-product.product-grid-item"
+      title: ".wd-entities-title a"
+      url: ".wd-entities-title a@href"
+      price: ".price ins .amount || .price .amount"
+      availability: "@class"        # instock / outofstock / onbackorder
+    in_stock_values: [instock]
+    on_order_values: [onbackorder]
+    out_of_stock_values: [outofstock]
+
+  # ---- More Bulgarian shops (the most frequent sellers on Pazaruvaj) ---------------
+
+  - name: Ultra
+    enabled: true
+    type: html                      # Magento; broad electronics and audio
+    impersonate: true
+    country: BG
+    currency: EUR
+    search_by: ean_then_name        # an EAN hit jumps straight to the product page
+    delay_seconds: 2
+    search_url: "https://www.ultra.bg/catalogsearch/result/?q={query}"
+    results:
+      item: "form.product-item"
+      title: "a.product-item-link"
+      url: "a.product-item-link@href"
+      price: ".price-box .special-price .price || .price-box .price-final_price .price"
+    product_on_redirect:
+      title: "h1 .base"
+      price: "meta[itemprop=price]@content"
+      availability: "p.stock"
+    in_stock_values: ["В наличност"]
+    on_order_values: ["Очаквайте доставка", "По заявка"]
+    out_of_stock_values: ["Изчерпан", "Няма наличност"]
+
+  - name: Ion Computers
+    enabled: true
+    type: html                      # PrestaShop
+    impersonate: true
+    country: BG
+    currency: EUR
+    search_by: name                 # part number / name; EAN search returns unrelated items
+    delay_seconds: 2
+    search_url: "https://www.ioncomputers.bg/search?controller=search&s={query}"
+    results:
+      item: "article.product-miniature"
+      title: "a.product-miniature__title"
+      url: "a.product-miniature__title@href"
+      price: ".product-miniature__price"
+    product_page:                   # JSON-LD: gtin, availability
+      max_pages: 2
+
+  - name: iStyle
+    enabled: true
+    type: json_api                  # Apple Premium Partner (Shopify); also sells Marshall
+    impersonate: true
+    country: BG
+    currency: EUR
+    search_by: ean_then_name
+    delay_seconds: 2
+    request:
+      method: GET
+      url: https://istyle.bg/search/suggest.json
+      params: {q: "{query}", "resources[type]": product, "resources[limit]": 10}
+    items: resources.results.products
+    fields:
+      title: title
+      url: url
+      url_prefix: https://istyle.bg
+      price: price
+      availability: available       # true / false
+
+  - name: BestPC
+    enabled: true
+    type: html
+    impersonate: true
+    country: BG
+    currency: EUR
+    search_by: ean_then_name        # EAN search works
+    delay_seconds: 2
+    search_url: "https://bestpc.bg/bg/search?mainsearchfield={query}"
+    results:
+      item: "div.productDiv"
+      title: "span[itemprop=name]"
+      url: "a.a-product@href"
+      price: "meta[itemprop=price]@content"
+      availability: "link[itemprop=availability]@href"
+      ean: "link[itemprop=gtin]@content"
+      on_order_if_present: ".listing-eta"   # "10-13 дни": supplier stock
+    in_stock_values: ["InStock"]
+    on_order_values: ["LimitedAvailability", "PreOrder"]
+    out_of_stock_values: ["OutOfStock"]
+
+  - name: Plasico
+    enabled: true
+    type: html
+    impersonate: true
+    country: BG
+    currency: EUR
+    search_by: name                 # part number / name; EAN finds nothing
+    delay_seconds: 2
+    search_url: "https://plasico.bg/tyrsene/{query}"
+    results:
+      item: "article.product-box"
+      title: "span.ttl"
+      url: "a.mainlink@href"
+      price: "span.price"
+    product_page:                   # JSON-LD: availability
+      max_pages: 2
+
+  - name: eHUB
+    enabled: true
+    type: html
+    impersonate: true
+    country: BG
+    currency: EUR
+    search_by: name
+    delay_seconds: 2
+    search_url: "https://ehub.bg/search?query={query}"
+    results:
+      item: "div._product"
+      title: "._product-name a"
+      url: "._product-name a@href"
+      price: "._product-price .price"
+    product_page:                   # JSON-LD: availability
+      max_pages: 2
+
+  - name: Xtreme
+    enabled: true
+    type: html
+    impersonate: true
+    country: BG
+    currency: EUR
+    search_by: ean_then_name
+    delay_seconds: 2
+    search_url: "https://xtreme.bg/shop/search.php?search_query={query}"
+    results:
+      item: "article.xts_product"
+      title: "h3.xts_product-title a"
+      url: "h3.xts_product-title a@href"
+      price: ".xts_price-eur"
+
+  - name: Vali
+    enabled: true
+    type: html                      # same platform as THX
+    impersonate: true
+    country: BG
+    currency: EUR
+    force_currency: true            # its JSON-LD says BGN but the prices are EUR
+    search_by: ean_then_name
+    delay_seconds: 2
+    search_url: "https://www.vali.bg/bg/search?search_text={query}"
+    results:
+      item: "article.catalog-item"
+      title: ".product-name a"
+      url: ".product-name a@href"
+      price: "price@:price"
+      availability: "div.status@title"
+    in_stock_values: ["наличен", "ограничена наличност"]
+    on_order_values: ["на път", "по заявка"]
+    out_of_stock_values: ["изчерпан"]
+
+  - name: THX
+    enabled: true
+    type: html
+    impersonate: true
+    country: BG
+    currency: EUR
+    force_currency: true
+    search_by: name
+    delay_seconds: 2
+    search_url: "https://thx.bg/bg/search?search_text={query}"
+    results:
+      item: "div.product-item"
+      title: "a.product-name"
+      url: "a.product-name@href"
+      price: "price@:price"
+      availability: "product-status@:status"   # 0 out, 1 in stock, 2 limited, 3 on the way, 4 on order
+    in_stock_values: ["1", "2"]
+    on_order_values: ["3", "4"]
+    out_of_stock_values: ["0"]
+
+  - name: Allstore
+    enabled: false                  # search timed out (60 s) on most queries on 2026-10-08; retry later
+    type: html                      # CloudCart; components and gaming PCs
+    impersonate: true
+    country: BG
+    currency: EUR
+    search_by: name
+    delay_seconds: 2
+    timeout_seconds: 60             # slow search
+    search_url: "https://allstore.bg/search.html?phrase={query}"
+    results:
+      item: "li.c-product-grid__wrapper"
+      title: "a.c-product-grid__product-title-link"
+      url: "a.c-product-grid__product-title-link@href"
+      price: ".price-value"
+
+# ---------------------------------------------------------------------------
+# Worldwide check: Europe, then the UK, US, New Zealand, Norway, Japan and South Africa.
+global:
+
+  # Klarna Shopping / PriceRunner: EAN search, shop count, cheapest in-stock offer.
+  # klarna.com blocks fast clients for ~10 min, so one market enabled and a slow delay.
+  - name: Klarna DE
+    enabled: true
+    type: klarna
+    country: DE
+    currency: EUR
+    search_by: ean_then_name
+    base_url: https://www.klarna.com/de/shopping
+    offers_page: true               # one more request per match, for the cheapest in-stock price
+    delay_seconds: 6
+
+  - name: Klarna FR
+    enabled: false
+    type: klarna
+    country: FR
+    currency: EUR
+    search_by: ean
+    base_url: https://www.klarna.com/fr/shopping
+    delay_seconds: 4
+
+  - name: Klarna IT
+    enabled: false
+    type: klarna
+    country: IT
+    currency: EUR
+    search_by: ean
+    base_url: https://www.klarna.com/it/shopping
+    delay_seconds: 4
+
+  - name: Idealo DE
+    enabled: true
+    type: jsonld
+    impersonate: true               # needs curl_cffi
+    country: DE
+    currency: EUR
+    search_by: ean
+    assume_in_stock: true
+    search_url: "https://www.idealo.de/preisvergleich/MainSearchProductCategory.html?q={query}"
+    result_url_contains: OffersOfProduct   # an EAN hit redirects to the product's offer page
+
+  - name: Kieskeurig NL
+    enabled: true
+    type: jsonld
+    impersonate: true               # 403 to plain requests after a few searches
+    delay_seconds: 6                # blocks (403) after ~10 fast searches; slow and one query per product
+    max_queries: 1
+    country: NL
+    currency: EUR
+    search_by: ean
+    search_url: "https://www.kieskeurig.nl/search?q={query}"
+    result_url_contains: /product/
+
+  - name: PriceSpy FR
+    enabled: true
+    type: pricespy
+    country: FR
+    currency: EUR
+    search_by: ean_then_name
+    host: ledenicheur.fr
+
+  - name: Skroutz GR
+    enabled: true
+    type: jsonld
+    impersonate: true               # needs curl_cffi
+    country: GR
+    currency: EUR
+    search_by: ean
+    assume_in_stock: true
+    search_url: "https://www.skroutz.gr/search?keyphrase={query}"
+
+  - name: Amazon DE
+    enabled: false                  # captcha-prone and mixes in sponsored items
+    type: html
+    impersonate: true
+    country: DE
+    currency: EUR
+    search_by: ean
+    search_url: "https://www.amazon.de/s?k={query}"
+    max_results: 3
+    results:
+      item: 'div[data-component-type="s-search-result"]'
+      title: "h2"
+      url: "h2 a@href || a.a-link-normal@href"
+      price: "span.a-price span.a-offscreen"
+
+  # Google Shopping via DataForSEO: shop offers from Google Shopping in each country below (thousands of
+  # shops instead of one site). Same login as the traffic data. About $0.002 per product per country
+  # (10 countries x 35 products = ~$0.70 per worldwide run); re-running the same file is free.
+  - name: Google Shopping
+    enabled: true
+    type: dataforseo_shopping
+    api_key_env: DATAFORSEO_LOGIN   # skipped while the DataForSEO login is empty
+    login_env: DATAFORSEO_LOGIN
+    password_env: DATAFORSEO_PASSWORD
+    priority: 2                     # 2 = results in about a minute ($0.002); 1 = up to 45 min ($0.001)
+    max_wait_seconds: 600
+    countries:
+      - {location: Germany, language: German, country: DE}
+      - {location: France, language: French, country: FR}
+      - {location: Italy, language: Italian, country: IT}
+      - {location: Spain, language: Spanish, country: ES}
+      - {location: Netherlands, language: Dutch, country: NL}
+      - {location: Poland, language: Polish, country: PL}
+      - {location: Romania, language: Romanian, country: RO}
+      - {location: Greece, language: Greek, country: GR}
+      - {location: United Kingdom, language: English, country: UK}
+      - {location: United States, language: English, country: US}
+    # offers from these sellers are ignored: second-hand shops and private-seller marketplaces
+    # (Google Shopping does not say if an item is used). Part of the seller name, any case.
+    exclude_sellers: [eBay, Wallapop, Leboncoin, Kleinanzeigen, OLX, subito, Vinted, Mercari, MPB, CeX,
+                      Cash Generator, Cash Converters, Fastcash, Back Market, refurbed, rebuy, momox,
+                      musicMagpie, Swappa, Used Products, Hard Off, Pawn, 2nd hand, Second hand]
+
+  # ---- outside the EU -------------------------------------------------------
+
+  - name: PriceRunner UK
+    enabled: true
+    type: klarna                    # same platform as Klarna
+    country: UK
+    currency: GBP
+    search_by: ean_then_name
+    base_url: https://www.pricerunner.com
+    offers_page: false
+    delay_seconds: 4
+
+  - name: Idealo UK
+    enabled: true
+    type: jsonld
+    impersonate: true               # needs curl_cffi
+    country: UK
+    currency: GBP
+    search_by: ean
+    assume_in_stock: true
+    search_url: "https://www.idealo.co.uk/mscat.html?q={query}"
+    result_url_contains: /compare/  # an EAN hit redirects to the product's comparison page
+
+  - name: Klarna US
+    enabled: true
+    type: klarna
+    country: US
+    currency: USD
+    search_by: ean_then_name        # EAN-13 works; the 12-digit UPC does not
+    base_url: https://www.klarna.com/us/shopping
+    offers_page: false
+    delay_seconds: 6                # shares klarna.com's rate limit with Klarna DE
+
+  - name: B&H Photo US
+    enabled: true
+    type: html
+    impersonate: true               # needs curl_cffi
+    country: US
+    currency: USD
+    search_by: name                 # EAN/UPC search returns nothing; part number or name works
+    delay_seconds: 3
+    search_url: "https://www.bhphotovideo.com/c/search?q={query}"
+    results:
+      item: '[data-selenium="miniProductPage"]'
+      title: 'a[data-selenium="miniProductPageProductNameLink"]'
+      url: 'a[data-selenium="miniProductPageProductNameLink"]@href'
+      availability: '[data-selenium="stockStatus"]'
+    # price and EAN (gtin13) come from the product page JSON-LD
+    product_page:
+      max_pages: 2
+
+  - name: PriceSpy NZ
+    enabled: true
+    type: pricespy
+    country: NZ
+    currency: NZD
+    search_by: ean_then_name
+    host: pricespy.co.nz
+
+  - name: Prisjakt NO
+    enabled: true
+    type: pricespy
+    country: NO
+    currency: NOK
+    search_by: ean_then_name
+    host: www.prisjakt.no           # must be the www host
+
+  - name: PriceSpy UK
+    enabled: false                  # third UK source; PriceRunner + Idealo UK usually enough
+    type: pricespy
+    country: UK
+    currency: GBP
+    search_by: ean_then_name
+    host: pricespy.co.uk
+
+  - name: Kakaku JP
+    enabled: true
+    type: html
+    country: JP
+    currency: JPY
+    search_by: name                 # JAN (EAN) search returns nothing
+    encoding: cp932                 # Shift-JIS
+    assume_in_stock: true
+    delay_seconds: 3
+    search_url: "https://search.kakaku.com/{query_path}/"
+    results:
+      item: "div.p-resultItem"
+      title: "p.p-item_name a"
+      url: "p.p-item_name a@href"
+      url_must_contain: "kakaku.com/item/"   # skip Rakuten ads
+      price: "em.p-item_priceNum"            # "533,482〜" = from
+      shop_count: "span.p-item_shopCounts_num"
+
+  - name: PriceCheck ZA
+    enabled: true
+    type: jsonld
+    delay_seconds: 5                # answers 429 (too many requests) when faster
+    country: ZA
+    currency: ZAR
+    search_by: ean_then_name
+    search_url: "https://www.pricecheck.co.za/search?search={query}"
+
+# ---------------------------------------------------------------------------
+# Per-product TRAFFIC: monthly searches for each product's keyword (brand + model, e.g.
+# "samsung 990 pro 1tb"; an input column `keyword` overrides it).
+#   local_markets:  Bulgaria          global_markets: the worldwide countries to sum
+# Credentials go in .env (variable names below). Enable the source you choose.
+traffic:
+
+  - name: DataForSEO
+    enabled: true                   # skipped until DATAFORSEO_LOGIN / DATAFORSEO_PASSWORD are in .env
+    type: dataforseo                # Google Ads search volume, billed per request of up to 1000 keywords
+    delay_seconds: 5.5              # their limit: 12 requests per minute
+    login_env: DATAFORSEO_LOGIN
+    password_env: DATAFORSEO_PASSWORD
+    local_markets: [Bulgaria]
+    # "Worldwide" = all countries in one request (used as the worldwide total).
+    # Countries listed after it only add a per-country breakdown to the Traffic sheet (one request each).
+    global_markets: [Worldwide, United States, United Kingdom, Germany]
+
+  - name: Semrush
+    enabled: false
+    type: semrush                   # ~10 API units per keyword per database; API needs a paid plan
+    api_key_env: SEMRUSH_API_KEY
+    local_markets: [bg]
+    global_markets: [us, uk, de, fr, it, es, pl, ro, gr, ca, au, jp]

@@ -1,0 +1,140 @@
+# ---------------------------------------------------------------------------
+# Pre-order agent settings. Reference websites live in sites.yaml.
+# ---------------------------------------------------------------------------
+
+input:
+  sheet: 0                          # sheet index or name in the .xlsx
+  default_supplier_currency: EUR
+  # Each field lists the column names it may appear under (first match wins). Case, spaces, '_' and '-'
+  # are ignored, so "Product name" matches product_name.
+  columns:
+    name:              [name, product_name, product, title, item, item_name, description_short, model_name,
+                        "наименование", "продукт", "артикул", "име"]
+    ean:               [ean_main, ean, ean13, gtin, gtin13, barcode, upc, "баркод", "ean код"]
+    sku:               [internal_sku, sku]
+    brand:             [brand, manufacturer, "марка"]
+    category:          [category, "категория"]
+    supplier_price:    [supplier_price, acquisition_price, purchase_price, buy_price, net_price, unit_price,
+                        cost, price, "цена", "доставна цена", "единична цена",
+                        sale_price]   # per row the first FILLED column wins (sale_price = used in the shop template)
+    supplier_currency: [supplier_currency, currency]
+    order_qty:         [order_qty, qty, quantity, moq, "количество", "бройки"]
+    supplier:          [supplier, vendor, "доставчик"]
+    keyword:           [keyword, semrush_keyword]   # optional: overrides the traffic (DataForSEO) keyword
+
+# Foreign currency -> EUR (multiply). BGN is fixed at the euro conversion rate.
+fx_to_eur:
+  EUR: 1.0
+  BGN: 0.511292
+  PLN: 0.235
+  CZK: 0.0398
+  HUF: 0.00254
+  RON: 0.197
+  GBP: 1.17
+  DKK: 0.134
+  SEK: 0.089
+  USD: 0.86
+  NOK: 0.085
+  CHF: 1.07
+  JPY: 0.0058
+  AUD: 0.57
+  NZD: 0.52
+  CAD: 0.62
+  ZAR: 0.049
+  INR: 0.0103
+  MXN: 0.047
+  BRL: 0.16
+  TRY: 0.021
+# Rates as of Oct 2026 (approximate) - update when they move.
+
+# Shop prices include VAT; they are converted to net before comparing with the supplier price.
+vat_by_country:
+  BG: 0.20
+  DE: 0.19
+  AT: 0.20
+  PL: 0.23
+  CZ: 0.21
+  RO: 0.21
+  GR: 0.24
+  IT: 0.22
+  FR: 0.20
+  ES: 0.21
+  NL: 0.21
+  UK: 0.20
+  DK: 0.25
+  SE: 0.25
+  EU: 0.21           # fallback for pan-EU sources
+  # outside the EU
+  US: 0.0            # US shop prices are shown before sales tax
+  NO: 0.25
+  CH: 0.081
+  JP: 0.10
+  AU: 0.10
+  NZ: 0.15
+  CA: 0.0            # Canadian shop prices are shown before tax
+  ZA: 0.15
+  IN: 0.18
+  MX: 0.16
+  BR: 0.17
+
+scoring:
+  match_threshold: 0.75        # 0..1 — minimum similarity to accept a listing as the same product
+  # Listing with a different EAN: title score minus this. Some brands (Canon) use regional EANs for
+  # the same item, so it is not an outright reject. Set 1.0 to accept exact EAN matches only.
+  ean_mismatch_penalty: 0.15
+  # Prices outside [low x median, high x median] of all matched listings are ignored (needs min_offers)
+  outliers:
+    low: 0.6
+    high: 1.8
+    min_offers: 3
+
+  # Three scores, each 1-10. Prices are compared net of VAT; nothing else is added or deducted.
+  buy_price:
+    # How good the supplier price is vs the cheapest EU price (in stock).
+    # discount = 1 - supplier price / EU price
+    discount_for_1: -0.10      # paying 10% more than the cheapest EU shop sells it -> 1
+    discount_for_10: 0.30      # 30% below the cheapest EU shop -> 10
+  sell_price:
+    # Room to sell in Bulgaria: margin = (BG price - supplier price) / BG price.
+    # BG price = cheapest in-stock Bulgarian competitor; if nobody has it in stock, the median BG price;
+    # if nobody in BG lists it, the EU median.
+    margin_for_1: 0.0
+    margin_for_10: 0.35
+  sales:
+    # How much it sells, 1-10 (log scale). Bulgarian demand decides; weighted over the signals available:
+    weights: {bg_searches: 0.45, bg_shops: 0.35, world_searches: 0.20}
+    bg_searches_for_10: 1000     # Google searches per month in Bulgaria (DataForSEO)
+    bg_shops_for_10: 60          # Bulgarian shops selling it (Pazaruvaj's offer count included)
+    world_searches_for_10: 50000 # Google searches per month worldwide
+    world_shops_for_10: 250      # used instead of BG shops only when nobody in Bulgaria sells it
+    sells_well_from: 7           # sales score >= 7 -> "Sells well"
+    average_from: 4              # sales score >= 4 -> "Average", below -> "Weak"
+    trend_change: 0.15           # last 3 months vs the 3 before: +15% = Rising, -15% = Falling
+    trend_min_searches: 30       # no trend arrow below this many searches a month (noise)
+
+  # Overall 1-10 score: weighted average of the three ("price first")
+  weights:
+    buy_price: 0.35
+    sell_price: 0.40
+    sales: 0.25
+  verdict:
+    buy: 7.0
+    consider: 5.0
+    min_margin: 0.0            # below this BG margin -> SKIP whatever the other scores
+
+moq:
+  min_eur: 20000
+  max_eur: 30000
+
+# Supplier files without product names: names are looked up by EAN in these files (paths relative to the
+# compare_agent folder; the first file that knows the EAN wins). Unknown EANs are searched by EAN only and
+# named after the shop listing that matched.
+product_names:
+  - "../products.xlsx"
+  - "../entire products_export (9).csv"
+
+http:
+  min_delay_seconds: 1.5       # politeness delay between requests to the same domain
+  timeout_seconds: 25
+  cache_ttl_hours: 12
+  max_workers: 12              # parallel searches; each site still keeps its own delay
