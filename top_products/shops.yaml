@@ -1,0 +1,105 @@
+# ---------------------------------------------------------------------------
+# Shops checked for each category. Only used with --traffic.
+# The 6 with the most organic Google traffic in a category are "leading" (content_site: true never is).
+#
+#   domain          the shop's own host, without www.
+#   product_rx      regex on the URL path (without ?query) that marks a product page
+#   skip_rx         pages never worth opening (blog, multi-level categories)
+#   exclude_rx      pages that match product_rx but are not products (promo landing pages)
+#   by_page: true   product and category URLs look alike: open the page and judge by its product data
+#   keep_crumbs_rx  general shops: only products whose shop category (breadcrumb) matches belong to the category
+#   impersonate     open pages as Chrome (shops that block scripts)
+#   delay           seconds between pages on this shop (default 1.5)
+#   price_css / oos_css / instock_css   price and stock shown only in the page, not in its product data
+#   cache_bust      true = add ?v=<date> (a shop whose page cache serves empty copies)
+#   pages_target / pages_filters        the DataForSEO report takes no subdomains: ask the domain + a page filter
+#   open_rule / open_other / open_by_page   how many pages to open (defaults 45 / 15 / 80)
+#   brand_is_shop   the shop writes its own name as every product's brand
+#   overrides       {part of a URL: {field: value, note: text}} for single pages
+#   scope_note      shown in the summary
+# ---------------------------------------------------------------------------
+
+Детски:
+  - {name: Jumbo, domain: e-jumbo.bg, aliases: [Джъмбо, e-jumbo], product_rx: '^/bg/(igrachki|stoki-za-bebeta)/.+_\d+/?$',
+     impersonate: true, price_css: '.prices-container .current-price', scope_note: само играчки и бебешки стоки}
+  - {name: Hippoland, domain: hippoland.net, aliases: [Хиполенд], by_page: true, product_rx: '^/[^/]+$', skip_rx: '^/produkti/|^/[^/]+/.'}
+  - {name: Vis Vitalis, domain: visvitalis.bg, aliases: [Вис Виталис], product_rx: '^/product/', delay: 3}
+  - {name: Comsed, domain: comsed.net, aliases: [Комсед], by_page: true, skip_rx: '^/[^/]+/.'}
+  - {name: Raya Toys, domain: rayatoys.com, aliases: [Рая Тойс, RayaToys], by_page: true, skip_rx: '^/[^/]+/.',
+     overrides: {izberi-lesno-svoyata-konfiguratsiya: {price_min: null, price_max: null, note: 'конфигуратор: цената зависи от избраната комбинация'}}}
+  - {name: Baby.bg, domain: baby.bg, product_rx: '^/product/'}
+  - {name: BG Hlapeta, domain: bghlapeta.com, aliases: [БГ Хлапета], by_page: true, skip_rx: '^/cats/|^/[^/]+/.'}
+  - {name: LEGO Bravo Store, domain: lego.bravostore.bg, product_rx: '^/products/', pages_target: bravostore.bg,
+     pages_filters: [[page_address, regex, 'lego\.bravostore\.bg/']]}
+  - {name: Patilanci, domain: patilanci.bg, aliases: [Патиланци], product_rx: '^/pat\d+-'}
+  - {name: Kosara, domain: kosara.bg, aliases: [Косара], product_rx: '^/\d+/'}
+  - {name: Doniceta, domain: doniceta.com, product_rx: '^/product/\d+/'}
+  - {name: Crazy Kids, domain: crazy-kids.bg, by_page: true, skip_rx: '^/[^/]+/.'}
+  - {name: K&K, domain: k-k.bg, by_page: true, skip_rx: '^/[^/]+/.'}
+  - {name: Kinderland, domain: kinderland.bg, by_page: true}
+  - {name: Okaidi, domain: okaidi.bg, by_page: true}
+  - {name: Teddy Toys, domain: teddytoys.bg, by_page: true}
+  - {name: Toyzz Shop, domain: toyzzshop.bg, by_page: true, skip_rx: '^/[^/]+/.', impersonate: true}
+  - {name: Toy Store, domain: toy.store.bg, by_page: true, pages_target: store.bg, pages_filters: [[page_address, regex, 'toy\.store\.bg/']]}
+
+Аптеки:
+  - {name: Framar, domain: apteka.framar.bg, aliases: [Фрамар, Аптека Фрамар], product_rx: '^/\d{8}(/|$)',
+     pages_target: framar.bg, pages_filters: [[page_address, regex, 'apteka\.framar\.bg/']]}
+  - {name: SOpharmacy, domain: sopharmacy.bg, aliases: [Sopharmacy], product_rx: '^/bg/product/\d+/?$'}
+  - {name: Galen, domain: galen.bg, aliases: [Гален], product_rx: '^/[^/]+$', impersonate: true,
+     skip_rx: '^/(terapija-i-zdrave|hrani-i-hranitelni-dobavki|kozmetika|mama-i-bebe|homeopatiq|homeopatiya|blog|brands|marki|stores|apteki|promo|promocii|kontakti|za-nas|novini|search|cart|checkout|account|page|info)(/|$)',
+     exclude_rx: '^/(wesupply-store-locator|produkti-po-lekarsko-predpisanie)$'}
+  - {name: Remedium, domain: remedium.bg, aliases: [Ремедиум], product_rx: '/p/?$'}
+  - {name: BENU, domain: benu.bg, aliases: [Benu], by_page: true, skip_rx: '^/(blog|health-portal|brands|v)/|^/[^/]+/.'}
+  - {name: Afya, domain: afya-pharmacy.bg, aliases: [Афя], by_page: true, skip_rx: '^/[^/]+/.'}
+  - {name: Salvia, domain: salvia.bg, aliases: [Салвия], product_rx: '^/bg/[^/]+/\d+-[^/]+\.html$'}
+  - {name: Apteka Nove, domain: aptekanove.bg, aliases: [Аптека Нове, Nove], product_rx: '^/[^/]+-\d{4,6}\.html$'}
+  - {name: Vitania, domain: vitania.bg, aliases: [Витания], product_rx: '^/bg/[^/]+/[^/]+-\d{4,6}/?$', skip_rx: '^/bg/(brand|disease)/'}
+  - {name: ePharm, domain: epharm.bg, by_page: true, skip_rx: '^/blog/|^/[^/]+/.'}
+  - {name: Аптеки 36.6, domain: 366.bg, aliases: ['36.6'], product_rx: '^/product/'}
+  - {name: Marvi, domain: marvi.bg, aliases: [Марви], product_rx: '^/shop/[^/]+/?$'}
+  - {name: Subra, domain: subra.bg, aliases: [Субра], product_rx: '/4/\d+/?$', brand_is_shop: true}
+
+Технологии:
+  - {name: Technopolis, domain: technopolis.bg, aliases: [Технополис], product_rx: '/p/\d+/?$'}
+  - {name: eMAG, domain: emag.bg, product_rx: '/pd/[A-Za-z0-9]+/?$', impersonate: true, delay: 8, open_rule: 100, open_other: 0,
+     scope_note: 'само техника (по категорията на продукта в eMAG)',
+     keep_crumbs_rx: '^(Мобилни телефони|Таблети|Лаптопи|Компютри|Монитори|Периферия|PC компоненти|Мрежов|Принтери|Gaming|Гейминг|Конзоли|Видео игри|Телевизори|Видео проектори|Системи за домашно кино|Аудио|Слушалки|Фотоапарати|Електроника|Джаджи & Smart|Smart|Смарт|Носими|Уреди & Аксесоари за лична грижа|[KК]ухненски уреди|Малки електроуреди|Големи електроуреди|Климатици|Прахосмукачки|Електрически превозни средства|Хладилници|Перални)'}
+  - {name: Ozone, domain: ozone.bg, aliases: [Озон, Ozone.bg], product_rx: '^/product/[^/]+/?$', open_rule: 150,
+     scope_note: 'само техника (по категорията на продукта в Ozone)',
+     keep_crumbs_rx: '^(Гейминг|Аудио и hi-fi|Смартфони и смарт устройства|Малки електроуреди|Големи електроуреди|Тв, фото и видео|Лаптопи, компютри и монитори|Компютърни компоненти|Компютри и периферия|Умен дом)',
+     price_css: '#product_addtocart_form .price-box .special-price .price, #product_addtocart_form .price-box .regular-price .price',
+     oos_css: '#product_addtocart_form .availability.out-of-stock', instock_css: '#product_addtocart_form .availability.in-stock'}
+  - {name: Zora, domain: zora.bg, aliases: [Зора], product_rx: '^/product/[^/]+/?$', impersonate: true}
+  - {name: Technomarket, domain: technomarket.bg, aliases: [Техномаркет], product_rx: '^/[^/]+/[^/]+-\d{8}/?$',
+     skip_rx: '^/produkti/', exclude_rx: '^/(p|promocii|magazini)/'}
+  - {name: Ardes, domain: ardes.bg, product_rx: '^/product/.+-\d+/?$'}
+  - {name: Techmart, domain: techmart.bg, aliases: [Техмарт], by_page: true, skip_rx: '^/[^/]+/.'}
+  - {name: Tehnomix, domain: tehnomix.bg, aliases: [Техномикс], by_page: true, skip_rx: '^/[^/]+/.'}
+  - {name: Plesio, domain: plesio.bg, product_rx: '-p-\d+\.html$', price_css: '.prices-container-wrapper .price-container-element'}
+  - {name: JAR Computers, domain: jarcomputers.com, aliases: [JAR], product_rx: '-prod-[^/]+\.html$'}
+  - {name: Plasico, domain: plasico.bg, product_rx: '^/[^/]+-\d{6,}\.html$'}
+  - {name: Desktop.bg, domain: desktop.bg, product_rx: '(?i)^/[a-z_]+-[a-z0-9_]+-[^/]+-[^/]+$'}
+  - {name: Laptop.bg, domain: laptop.bg, product_rx: '(?i)^/[a-z_]+-[a-z0-9_]+-[^/]+-[^/]+$'}
+  - {name: PIC, domain: pic.bg, product_rx: '^/[a-z0-9-]+-\d{4,7}/?$'}
+
+Хранителни добавки:
+  - {name: Vitamag, domain: vitamag.bg, aliases: [Витамаг], product_rx: '^/product/[^/]+/?$', content_site: true}
+  - {name: ForLife, domain: forlife.bg, product_rx: '^/produkt/[^/]+/?$', content_site: true}
+  - {name: Bilki.bg, domain: bilki.bg, aliases: [Билки.бг, Bilki], by_page: true, skip_rx: '^/[^/]+/.'}
+  - {name: GymBeam, domain: gymbeam.bg, product_rx: '^/[^/]+\.html$', skip_rx: '^/blog/'}
+  - {name: Sila, domain: silabg.com, aliases: [Сила, SilaBG], product_rx: '^/bg/\d+-[^/]+\.html$'}
+  - {name: Revita, domain: revita.bg, aliases: [Ревита], product_rx: '^/shop/[^/]+/?$', delay: 4, cache_bust: true, open_rule: 25, open_other: 0}
+  - {name: Biovital, domain: biovital.bg, product_rx: '-\d+-\d+/?$', content_site: true}
+  - {name: iHerb, domain: bg.iherb.com, product_rx: '^/pr/[^/]+/\d+', impersonate: true, pages_target: iherb.com,
+     pages_filters: [[page_address, regex, 'bg\.iherb\.com/']]}
+  - {name: Myprotein, domain: myprotein.bg, product_rx: '^/p/[^/]+/[^/]+/\d+/?$'}
+  - {name: Fitness1, domain: fitness1.bg, product_rx: '^/[^/]+/[^/]+/[^/]+/\d+/?$', skip_rx: '^/(category|brand)/'}
+  - {name: Healthstore, domain: healthstore.bg, by_page: true, skip_rx: '^/[^/]+/.'}
+  - {name: Vitagold, domain: vitagold.bg, aliases: [Витаголд], product_rx: '^/produkt/[^/]+/?$'}
+  - {name: Nitro Tiger, domain: nitrotiger.com, by_page: true, skip_rx: '^/[^/]+/.'}
+  - {name: FutuNatura, domain: futunatura.bg, by_page: true, skip_rx: '^/[^/]+/.'}
+  - {name: 4Fitness, domain: 4fitness.bg, by_page: true, skip_rx: '^/[^/]+/.'}
+  - {name: BB Shop (BB-Team), domain: bbshop.bg, aliases: [BB Shop, BB-Team], product_rx: '^/product/[^/]+/?$'}
+  - {name: Biomall, domain: biomall.bg, by_page: true, skip_rx: '^/[^/]+/.'}
+  - {name: Ready for Life, domain: readyforlife.bg, product_rx: '^/[^/]+/\d+-[^/]+\.html$'}

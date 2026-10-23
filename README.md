@@ -53,3 +53,20 @@ The **Shop prices** sheet lists every shop price that was used, with a link.
 - **"Wrong login" or "empty balance":** check `.env` with `python -m compare_agent --check-keys`.
 - **The file isn't understood:** the message says which column name to add under `input.columns` in
   `config/settings.yaml`.
+
+## Top products by traffic + EU vendors (separate tool)
+
+Builds `output/Топ продукти по трафик*.xlsx`: the products with the most Google traffic at the leading Bulgarian
+shops, and (sheet **EU доставчици**) which of them the EU vendors sell cheaper, with a 1-10 score.
+
+```bash
+python -m top_products                 # or double-click top_products.bat
+```
+
+- Put the **EU vendors** .zip from Google Drive in this folder, in `input/` or in Downloads (the newest one is
+  used), or pass it: `python -m top_products --vendors "path/EU vendors.zip"`. This run is free.
+- `python -m top_products --traffic` also fetches the traffic data again from DataForSEO. It costs about $6 and
+  stops before passing `--budget` (default in `top_products/settings.yaml`). Within the same month it reuses the
+  data it already paid for.
+- Score rules, VAT and limits: `top_products/settings.yaml`. Shops: `top_products/shops.yaml`.
+- Matches found only by name show as "по име – за проверка": check them, then list them in `top_products/review.yaml`.

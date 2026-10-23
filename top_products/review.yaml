@@ -1,0 +1,19 @@
+# ---------------------------------------------------------------------------
+# Matches checked by hand, for products whose shop page shows no barcode (they are matched by name).
+# A barcode match needs no review. A new name match that is not listed here shows in the sheet as
+# "по име – за проверка": check it, then add it under accept or reject.
+#   url  = the product's page in the Bulgarian shop (as in the sheet "Всички продукти")
+#   ean  = the vendor's barcode
+# ---------------------------------------------------------------------------
+
+accept:
+  - {url: 'https://desktop.bg/headphones-apple-AirPods_5-mkfw4zma', ean: '0195951379036', why: 'AirPods 5, part number MKFW4 on both'}
+  - {url: 'https://plasico.bg/bezzhichni-bluetooth-slushalki-apple-airpods-pro-3-beli-mfhp4zm-a-13175324.html', ean: '0195950543742', why: 'AirPods Pro 3, part number MFHP4ZM/A on both'}
+  - {url: 'https://plesio.bg/slushalki-c-69977639/apple-airpods-pro-3-p-386371.html', ean: '0195950543742', why: 'AirPods Pro 3, same barcode at Technopolis/Ozone/Ardes'}
+  - {url: 'https://desktop.bg/desktop_cpus-amd-Ryzen_5-amd_ryzen_5_7600x', ean: '0730143314442', why: 'AMD Ryzen 5 7600X'}
+  - {url: 'https://subra.bg/bg/kozmetika/kozmetika-za-lice/avene-cleanance-hydra-uspokojavasht-krem-podhodjasht-pri-razdraznena-koja-sled-medikametozno-lechenie-na-akne-40-ml/4/605', ean: '3282770100891', why: 'Avène Cleanance Hydra 40 ml; 3282770 = Pierre Fabre (Avène)'}
+  - {url: 'https://www.silabg.com/bg/3036-now-glucosamine-chondroitin-with-msm-90-caps.html', ean: '0733739031709', why: 'NOW #3170 Glucosamine & Chondroitin with MSM, 90 caps'}
+  - {url: 'https://healthstore.bg/now-magtein-90-kapsuli-magnesium-threonate', ean: '0733739023902', why: 'NOW #2390 Magtein, 90 caps'}
+
+reject:
+  - {url: 'https://desktop.bg/headphones-beatsbydre-Powerbeats_Pro_2-mx723zma', ean: '4061504082004', why: 'vendor item is an unrelated "Pro + G-Spot Generation 2"'}
