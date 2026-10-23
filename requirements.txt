@@ -8,3 +8,4 @@ rapidfuzz>=3.0
 pytest>=8.0
 curl_cffi>=0.7        # Chrome TLS impersonation for Idealo, Skroutz, Pazaruvaj (impersonate: true)
 xlrd>=2.0            # old .xls supplier files
+google-auth>=2.0      # optional: EU vendors folder through the Google Drive API (service account)

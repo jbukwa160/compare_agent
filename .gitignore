@@ -6,3 +6,4 @@ __pycache__/
 .pytest_cache/
 input/
 EU vendors*
+google-service-account*.json

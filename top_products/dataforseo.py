@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import threading
 import time
 from pathlib import Path
 
@@ -26,6 +27,8 @@ class Labs:
         self.cache.mkdir(parents=True, exist_ok=True)
         self.budget = budget
         self.spent = 0.0
+        self._reserved = 0.0                     # worst case of the calls in flight (shops run in parallel)
+        self._lock = threading.Lock()
         self.month = time.strftime("%Y-%m")   # the same request in a new month is asked again
 
     def _headers(self) -> dict[str, str]:
@@ -48,12 +51,19 @@ class Labs:
             data = json.loads(path.read_text(encoding="utf-8"))
         else:
             worst = PRICE_TASK + PRICE_ROW * int(task.get("limit", 100))
-            if self.spent + worst > self.budget:
-                raise BudgetExceeded(f"stopped at ${self.spent:.2f}: the next call could pass the ${self.budget:.2f} budget")
-            data = requests.post(API + endpoint, json=[task], headers=self._headers(), timeout=180).json()
+            with self._lock:
+                if self.spent + self._reserved + worst > self.budget:
+                    raise BudgetExceeded(f"stopped at ${self.spent:.2f}: the next call could pass the ${self.budget:.2f} budget")
+                self._reserved += worst
+            try:
+                data = requests.post(API + endpoint, json=[task], headers=self._headers(), timeout=180).json()
+            finally:
+                with self._lock:
+                    self._reserved -= worst
             if data.get("status_code") != 20000:
                 raise RuntimeError(f"DataForSEO: {data.get('status_code')} {data.get('status_message')}")
-            self.spent += float(data.get("cost") or 0)
+            with self._lock:
+                self.spent += float(data.get("cost") or 0)
             t = data["tasks"][0]
             if t.get("status_code") != 20000:
                 raise RuntimeError(f"DataForSEO {endpoint}: {t.get('status_code')} {t.get('status_message')}")

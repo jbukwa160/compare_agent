@@ -57,16 +57,21 @@ The **Shop prices** sheet lists every shop price that was used, with a link.
 ## Top products by traffic + EU vendors (separate tool)
 
 Builds `output/Топ продукти по трафик*.xlsx`: the products with the most Google traffic at the leading Bulgarian
-shops, and (sheet **EU доставчици**) which of them the EU vendors sell cheaper, with a 1-10 score.
+shops, and which of them the EU vendors sell cheaper, with a 1-10 score (sheet **EU доставчици**).
 
 ```bash
 python -m top_products                 # or double-click top_products.bat
 ```
 
-- Put the **EU vendors** .zip from Google Drive in this folder, in `input/` or in Downloads (the newest one is
-  used), or pass it: `python -m top_products --vendors "path/EU vendors.zip"`. This run is free.
-- `python -m top_products --traffic` also fetches the traffic data again from DataForSEO. It costs about $6 and
-  stops before passing `--budget` (default in `top_products/settings.yaml`). Within the same month it reuses the
-  data it already paid for.
-- Score rules, VAT and limits: `top_products/settings.yaml`. Shops: `top_products/shops.yaml`.
-- Matches found only by name show as "по име – за проверка": check them, then list them in `top_products/review.yaml`.
+Every run:
+- **scrapes all shops** in `top_products/shops.yaml` (62 shops; the 6 with the most traffic per category are marked
+  leading). DataForSEO answers are kept for the month, so only the first run of a month costs money (about $6,
+  never more than `budget_usd` in `top_products/settings.yaml`). Later runs re-check prices and stock for free.
+  `--offline` skips DataForSEO and reuses the traffic data in the Excel.
+- **checks every vendor** in the shared Google Drive folder `SUPPLIERS & LISTINGS & CATALOGS & CRM/CATALOUGES-VENDORS/EU vendors`.
+  With **Google Drive for desktop** installed it is found by itself (any drive letter). Without it: a service
+  account (see `top_products/drive.py`, then `GOOGLE_SERVICE_ACCOUNT_FILE` in `.env`), `--vendors PATH`, or the
+  folder's .zip download in this folder / `input/` / Downloads.
+
+Score rules, VAT and limits: `top_products/settings.yaml`. Matches found only by name show as
+"по име – за проверка": check them, then list them in `top_products/review.yaml`.

@@ -206,6 +206,25 @@ def _vendors(wb: Workbook, table: list[dict], left_out: dict, source: str, check
     ws.auto_filter.ref = f"A5:{get_column_letter(len(VENDOR_COLS))}{max(6, 5 + len(table))}"
 
 
+def _vendor_list(wb: Workbook, vendors: list[dict], source: str) -> None:
+    ws = wb.create_sheet("Проверени доставчици", 2)
+    ws["A1"] = "Проверени доставчици"
+    ws["A1"].font = Font(bold=True, size=13)
+    ws["A2"] = f"Всяка папка на доставчик в „EU vendors“ ({source})."
+    cols = [("Доставчик", 30, "vendor"), ("Цени в листата (редове)", 13, "rows"), ("Различни баркода", 12, "eans"),
+            ("Продукти от таблицата с трафика", 13, "found"), ("Най-евтин доставчик в „EU доставчици“", 14, "cheapest"),
+            ("Бележка", 50, "note")]
+    _header(ws, 4, cols)
+    for i, v in enumerate(sorted(vendors, key=lambda v: (-v["found"], -v["rows"], v["vendor"])), start=5):
+        for c, (_, _, key) in enumerate(cols, 1):
+            cell = ws.cell(i, c, v.get(key) or (0 if key != "note" and key != "vendor" else None))
+            cell.border, cell.alignment = THIN, TOP
+            if key in ("rows", "eans"):
+                cell.number_format = "#,##0"
+    ws.freeze_panes = "B5"
+    ws.auto_filter.ref = f"A4:F{4 + len(vendors)}"
+
+
 def write(path: Path, shops: list[dict], rows: list[dict], meta: dict, vendors: dict | None) -> None:
     """The whole workbook; saved next to the target first, so a failed save never leaves half a file."""
     wb = Workbook()
@@ -213,6 +232,7 @@ def write(path: Path, shops: list[dict], rows: list[dict], meta: dict, vendors: 
     if vendors:
         _vendors(wb, vendors["table"], vendors["left_out"], vendors["source"], meta["checked_vendors"],
                  vendors["score_cfg"], vendors["vat"])
+        _vendor_list(wb, vendors["vendors"], vendors["source"])
     order = {s["store"]: i for i, s in enumerate(sorted(shops, key=lambda s: (not s["lead"], -(s["traffic"] or 0))))}
     scope = {"Детски": "Jumbo: само играчки и бебешки стоки.", "Технологии": "eMAG и Ozone: само техника."}
     for cat, title in CATEGORIES.items():
